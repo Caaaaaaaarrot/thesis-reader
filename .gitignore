@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+release/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# Runtime data
+data/
+papers/
+.speedread_cache/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+Analysis.txt
+Optimization-Plan.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Electron builder
+builder-output/
