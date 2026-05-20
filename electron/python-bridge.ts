@@ -15,15 +15,15 @@ export class PythonBridge {
     const pythonCmd = process.platform === 'win32'
       ? 'F:/anaconda/python.exe'
       : 'python3'
-    const backendDir = isDev
-      ? path.join(__dirname, '..', 'backend')
-      : path.join(process.resourcesPath, 'backend')
+    const rootDir = isDev
+      ? path.join(__dirname, '..')
+      : process.resourcesPath
 
-    const args = ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '0']
+    const args = ['-m', 'uvicorn', 'backend.main:app', '--host', '127.0.0.1', '--port', '0']
 
     return new Promise((resolve, reject) => {
       this.process = spawn(pythonCmd, args, {
-        cwd: backendDir,
+        cwd: rootDir,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, PYTHONUNBUFFERED: '1' },
       })

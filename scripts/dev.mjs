@@ -21,12 +21,12 @@ async function main() {
     : 'python3'
 
   const pythonProc = spawn(pythonCmd, [
-    '-m', 'uvicorn', 'main:app',
+    '-m', 'uvicorn', 'backend.main:app',
     '--host', '127.0.0.1',
     '--port', '17384',
     '--reload',
   ], {
-    cwd: backendDir,
+    cwd: ROOT,
     stdio: 'inherit',
     env: { ...process.env, PYTHONUNBUFFERED: '1' },
   })
@@ -45,18 +45,21 @@ async function main() {
 
   // 3. 启动 Electron
   console.log('[3/3] 启动 Electron...')
-  const electronPath = path.join(ROOT, 'node_modules', '.bin',
-    process.platform === 'win32' ? 'electron.cmd' : 'electron')
+  const isWin = process.platform === 'win32'
+  const binDir = path.join(ROOT, 'node_modules', '.bin')
+  const electronPath = path.join(binDir, isWin ? 'electron.cmd' : 'electron')
 
-  // 先编译 electron TS
-  const compileElectron = spawn('npx', [
-    'tsc', '-p', 'tsconfig.electron.json',
+  // 先编译 electron TS（用 node 直接跑 tsc.js，避免 Windows .cmd spawn 问题）
+  const compileElectron = spawn('node', [
+    path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'),
+    '-p', 'tsconfig.electron.json',
   ], { cwd: ROOT, stdio: 'inherit' })
 
   compileElectron.on('close', () => {
     const electronProc = spawn(electronPath, ['.'], {
       cwd: ROOT,
       stdio: 'inherit',
+      shell: true,
       env: {
         ...process.env,
         VITE_DEV_SERVER_URL: 'http://localhost:5173',
