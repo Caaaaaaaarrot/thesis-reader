@@ -8,7 +8,7 @@ from datetime import datetime
 from ..database import get_db
 from ..config import settings
 from ..models.paper import PaperResponse
-from ..utils.pdf_utils import get_pdf_info
+from ..utils.pdf_utils import get_pdf_info, extract_pdf_metadata
 
 # 从文件名推断 venue/year 的规则
 VENUE_PATTERNS: list[tuple[str, str]] = [
@@ -47,40 +47,59 @@ VENUE_PATTERNS: list[tuple[str, str]] = [
     (r'\bsiggraph\b', 'SIGGRAPH'), (r'\bsigir\b', 'SIGIR'),
     (r'\btse\b', 'TSE'), (r'\btosem\b', 'TOSEM'),
     (r'\btpami\b', 'TPAMI'), (r'\btip\b', 'TIP'),
+    (r'\btpds\b', 'TPDS'), (r'\btc\b', 'TC'), (r'\btdsc\b', 'TDSC'),
+    (r'\btifs\b', 'TIFS'), (r'\btkde\b', 'TKDE'), (r'\btois\b', 'TOIS'),
+    (r'\btoc\b', 'TOC'), (r'\btodaes\b', 'TODAES'),
+    (r'\bisca\b', 'ISCA'), (r'\bmicro\b', 'MICRO'), (r'\bhpca\b', 'HPCA'),
+    (r'\basplos\b', 'ASPLOS'), (r'\bsc\b', 'SC'),
+    (r'\bmobicom\b', 'MobiCom'), (r'\bmobisys\b', 'MobiSys'),
+    (r'\bsensys\b', 'SenSys'), (r'\bipts\b', 'IPSN'),
+    (r'\brtss\b', 'RTSS'), (r'\brtas\b', 'RTAS'),
+    (r'\bemsoft\b', 'EMSOFT'), (r'\bcases\b', 'CASES'),
+    (r'\bdac\b', 'DAC'), (r'\biccad\b', 'ICCAD'),
     (r'\barxiv\b', 'arXiv'),
 ]
 
 
-def infer_metadata(filename: str) -> dict:
-    """从文件名推断 venue 和 year"""
+def infer_metadata(filename: str, pdf_meta: dict | None = None) -> dict:
+    """从文件名和 PDF 内部元数据推断 venue、year、title"""
     name = Path(filename).stem.lower()
-    venue = ""
-    year = None
+    pdf_meta = pdf_meta or {}
+    venue = pdf_meta.get("venue_from_text", "")
+    year = pdf_meta.get("year_from_text", None)
 
-    # 匹配 venue（处理 venYEAR 如 ase25、ICSE24 和 ven_YEAR 如 icse_2024）
-    for pattern, label in VENUE_PATTERNS:
-        # 先匹配 venue 后跟年份数字或下划线或边界的模式
-        p = pattern[:-2] + r'(?:\d{2,4})?(?:\b|_)'
-        if re.search(p, name):
-            venue = label
-            break
+    # 如果 PDF 文本没找到 venue，回退到文件名匹配
+    if not venue:
+        for pattern, label in VENUE_PATTERNS:
+            p = pattern[:-2] + r'(?:\d{2,4})?(?:\b|_)'
+            if re.search(p, name):
+                venue = label
+                break
 
-    # 匹配年份
-    year_match = re.search(r'(?:^|\D)(\d{2}|\d{4})(?:\D|$)', name)
-    if year_match:
-        y = int(year_match.group(1))
-        if y < 100:
-            year = 2000 + y if y <= 50 else 1900 + y
-        else:
-            year = y
+    # 如果 PDF 没找到年份，回退到文件名匹配
+    if not year:
+        year_match = re.search(r'(?:^|\D)(\d{2}|\d{4})(?:\D|$)', name)
+        if year_match:
+            y = int(year_match.group(1))
+            year = 2000 + y if y < 100 else 1900 + y if y > 50 else y
 
-    # 提取可能的标题（去除 venue 和 year 后的部分）
-    title = Path(filename).stem
-    title = re.sub(r'\b(?:' + '|'.join(p for p, _ in VENUE_PATTERNS) + r')\b',
-                   '', title, flags=re.IGNORECASE)
-    title = re.sub(r'(?:^|\D)\d{2,4}(?:\D|$)', ' ', title)
-    title = re.sub(r'[_-]', ' ', title).strip()
-    title = re.sub(r'\s+', ' ', title)
+    # 标题：优先用 PDF 嵌入的标题，否则从文件名清理
+    title = pdf_meta.get("embedded_title", "")
+    if title:
+        # 清理嵌入标题中常见的多余信息
+        title = re.sub(r'\s+', ' ', title).strip()
+    if not title:
+        title = Path(filename).stem
+        # 构建扩展 venue 模式（含年份后缀变体），用于标题清理
+        extended_patterns = []
+        for pat, _ in VENUE_PATTERNS:
+            p = pat[:-2] + r'(?:\d{2,4})?(?:\b|_)'
+            extended_patterns.append(p)
+        title = re.sub(r'(?:\b|_)(?:' + '|'.join(extended_patterns) + r')',
+                       ' ', title, flags=re.IGNORECASE)
+        title = re.sub(r'(?:^|(?<=\D))(\d{2,4})(?=\D|$)', ' ', title)
+        title = re.sub(r'[_-]', ' ', title).strip()
+        title = re.sub(r'\s+', ' ', title)
 
     return {"venue": venue, "year": year, "title": title}
 
@@ -99,17 +118,21 @@ def import_paper(file_path: str) -> PaperResponse:
 
     # PDF 信息
     page_count = 0
+    pdf_meta = {}
     try:
         info = get_pdf_info(str(src))
         page_count = info.get("page_count", 0)
-        # 提取内置元数据
-        if info.get("title") and not info.get("title", "").strip() == "":
-            pass  # 可在后续增强中利用
     except Exception:
         pass
 
-    # 推断元数据
-    meta = infer_metadata(filename)
+    # 从 PDF 内部提取元数据
+    try:
+        pdf_meta = extract_pdf_metadata(str(src))
+    except Exception:
+        pass
+
+    # 推断元数据（结合文件名 + PDF 内部信息）
+    meta = infer_metadata(filename, pdf_meta)
 
     # 确保 papers 目录存在
     settings.papers_dir.mkdir(parents=True, exist_ok=True)

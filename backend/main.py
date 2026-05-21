@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .database import init_db
-from .routers import papers, system, recycle
+from .routers import papers, system, recycle, speedread
 
 app = FastAPI(
     title="Thesis-Reader",
@@ -22,6 +22,7 @@ app.add_middleware(
 app.include_router(papers.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(recycle.router, prefix="/api")
+app.include_router(speedread.router, prefix="/api")
 
 
 @app.on_event("startup")

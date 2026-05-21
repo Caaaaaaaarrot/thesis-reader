@@ -5,10 +5,12 @@ import Sidebar from './components/layout/Sidebar'
 import Toolbar from './components/layout/Toolbar'
 import PaperList from './components/papers/PaperList'
 import PaperDetail from './components/papers/PaperDetail'
+import SettingsModal from './components/settings/SettingsModal'
 
 export default function App() {
   const [backendReady, setBackendReady] = useState(false)
   const [initError, setInitError] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const fetchPapers = usePapersStore((s) => s.fetchPapers)
   const fetchVenues = usePapersStore((s) => s.fetchVenues)
   const fetchTags = usePapersStore((s) => s.fetchTags)
@@ -49,7 +51,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar />
+      <Sidebar onSettingsClick={() => setSettingsOpen(true)} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Toolbar />
         <div className="flex-1 flex overflow-hidden">
@@ -63,6 +65,7 @@ export default function App() {
           )}
         </div>
       </div>
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   )
 }

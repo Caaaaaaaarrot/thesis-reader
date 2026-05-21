@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
 from ..database import get_db
 from ..models.paper import PaperResponse, PaperUpdate, PaperCreate
-from ..services.indexer import import_paper
+from ..services.indexer import import_paper, infer_metadata
+from ..utils.pdf_utils import extract_pdf_metadata
+from pathlib import Path
 from ..config import settings
 import json
 import os
@@ -166,6 +168,40 @@ async def delete_paper(paper_id: str):
             )
 
         return {"status": "ok"}
+    finally:
+        conn.close()
+
+
+@router.post("/papers/{paper_id}/reindex")
+async def reindex_paper(paper_id: str):
+    """从文件名重新推断元数据（venue/year/title）"""
+    conn = get_db()
+    try:
+        cur = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="论文不存在")
+
+        paper = dict(row)
+        file_path = str(settings.workspace_root / paper["file_path"])
+        pdf_meta = {}
+        try:
+            pdf_meta = extract_pdf_metadata(file_path)
+        except Exception:
+            pass
+        meta = infer_metadata(Path(paper["file_path"]).name, pdf_meta)
+        conn.execute(
+            "UPDATE papers SET venue = ?, year = ?, title = ? WHERE id = ?",
+            (meta["venue"], meta["year"], meta["title"], paper_id)
+        )
+        conn.commit()
+
+        cur = conn.execute(
+            "SELECT p.*, s.* FROM papers p LEFT JOIN speed_reads s ON p.id = s.paper_id WHERE p.id = ?",
+            (paper_id,)
+        )
+        d = dict(cur.fetchone())
+        return PaperResponse.from_row(d, d)
     finally:
         conn.close()
 

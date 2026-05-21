@@ -1,6 +1,10 @@
 import { usePapersStore } from '../../stores/papers'
 
-export default function Sidebar() {
+interface Props {
+  onSettingsClick: () => void
+}
+
+export default function Sidebar({ onSettingsClick }: Props) {
   const venues = usePapersStore((s) => s.venues)
   const tags = usePapersStore((s) => s.tags)
   const filter = usePapersStore((s) => s.filter)
@@ -74,6 +78,17 @@ export default function Sidebar() {
             </div>
           </>
         )}
+      </div>
+
+      {/* 设置 */}
+      <div className="p-3 border-t border-gray-100">
+        <button
+          onClick={onSettingsClick}
+          className="w-full text-left px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-50 rounded flex items-center gap-1.5"
+        >
+          <span className="text-gray-400">⚙</span>
+          设置
+        </button>
       </div>
     </div>
   )

@@ -63,6 +63,13 @@ interface FilterState {
   order: string
 }
 
+type GenPhase = 'idle' | 'extracting' | 'scoring' | 'rendering' | 'calling_llm'
+
+interface GenState {
+  phase: GenPhase
+  fields: Record<string, string>
+}
+
 interface PapersState {
   papers: Paper[]
   venues: VenueItem[]
@@ -70,6 +77,7 @@ interface PapersState {
   loading: boolean
   filter: FilterState
   selectedId: string | null
+  generating: Record<string, GenState>
 
   fetchPapers: () => Promise<void>
   fetchVenues: () => Promise<void>
@@ -79,6 +87,11 @@ interface PapersState {
   deletePaper: (id: string) => Promise<void>
   setFilter: (filter: Partial<FilterState>) => void
   selectPaper: (id: string | null) => void
+  updateSpeedRead: (paperId: string, data: SpeedReadData) => void
+  reindexPaper: (paperId: string) => Promise<void>
+  startGenerating: (paperId: string) => void
+  updateGenerating: (paperId: string, update: Partial<GenState>) => void
+  finishGenerating: (paperId: string) => void
 }
 
 export const usePapersStore = create<PapersState>((set, get) => ({
@@ -95,6 +108,7 @@ export const usePapersStore = create<PapersState>((set, get) => ({
     order: 'desc',
   },
   selectedId: null,
+  generating: {},
 
   fetchPapers: async () => {
     set({ loading: true })
@@ -155,4 +169,39 @@ export const usePapersStore = create<PapersState>((set, get) => ({
   },
 
   selectPaper: (id: string | null) => set({ selectedId: id }),
+
+  updateSpeedRead: (paperId: string, data: SpeedReadData) => {
+    set((s) => ({
+      papers: s.papers.map((p) =>
+        p.id === paperId ? { ...p, speed_read: data } : p
+      ),
+    }))
+  },
+
+  reindexPaper: async (paperId: string) => {
+    await apiPost<Paper>(`/api/papers/${paperId}/reindex`)
+    get().fetchPapers()
+    get().fetchVenues()
+  },
+
+  startGenerating: (paperId: string) => {
+    set((s) => ({
+      generating: { ...s.generating, [paperId]: { phase: 'extracting', fields: {} } }
+    }))
+  },
+
+  updateGenerating: (paperId: string, update: Partial<GenState>) => {
+    set((s) => {
+      const cur = s.generating[paperId] || { phase: 'idle', fields: {} }
+      return { generating: { ...s.generating, [paperId]: { ...cur, ...update } } }
+    })
+  },
+
+  finishGenerating: (paperId: string) => {
+    set((s) => {
+      const next = { ...s.generating }
+      delete next[paperId]
+      return { generating: next }
+    })
+  },
 }))
