@@ -1,6 +1,26 @@
-import { ipcMain, BrowserWindow, dialog, Notification } from 'electron'
+import { ipcMain, BrowserWindow, dialog, Notification, app } from 'electron'
 
 export function registerIpcHandlers(): void {
+  // DevTools
+  ipcMain.handle('toggle-devtools', () => {
+    BrowserWindow.getFocusedWindow()?.webContents.toggleDevTools()
+  })
+
+  // 关于对话框
+  ipcMain.handle('show-about', () => {
+    dialog.showMessageBox(BrowserWindow.getFocusedWindow()!, {
+      type: 'info',
+      title: '关于 Thesis-Reader',
+      message: 'Thesis-Reader',
+      detail: `版本: ${app.getVersion()}\n智能论文管理与阅读助手\n\n基于 Electron + Python FastAPI + React`,
+    })
+  })
+
+  // 彻底退出
+  ipcMain.handle('quit-app', () => {
+    app.quit()
+  })
+
   // 文件选择对话框
   ipcMain.handle('open-file-dialog', async (_event, options?: { multiple?: boolean }) => {
     const win = BrowserWindow.getFocusedWindow()

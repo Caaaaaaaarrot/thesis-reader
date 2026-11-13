@@ -83,6 +83,26 @@ def get_db() -> sqlite3.Connection:
 
 def init_db():
     conn = get_db()
-    conn.executescript(SCHEMA)
-    conn.commit()
-    conn.close()
+    try:
+        conn.executescript(SCHEMA)
+        conn.execute("BEGIN IMMEDIATE")
+        # 兼容已有论文库，保留所有手工编辑和速读结果。
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(papers)")}
+        for name, definition in {
+            "content_hash": "TEXT DEFAULT ''",
+            "file_mtime_ns": "INTEGER DEFAULT 0",
+            "file_missing": "INTEGER DEFAULT 0",
+        }.items():
+            if name not in columns:
+                conn.execute(f"ALTER TABLE papers ADD COLUMN {name} {definition}")
+        conn.execute("CREATE TABLE IF NOT EXISTS library_state (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0)")
+        conn.execute("INSERT OR IGNORE INTO library_state (id, revision) VALUES (1, 0)")
+        for table in ("papers", "speed_reads"):
+            for action in ("INSERT", "UPDATE", "DELETE"):
+                conn.execute(f"""CREATE TRIGGER IF NOT EXISTS revision_{table}_{action}
+                    AFTER {action} ON {table} BEGIN
+                    UPDATE library_state SET revision = revision + 1 WHERE id = 1;
+                    END""")
+        conn.commit()
+    finally:
+        conn.close()

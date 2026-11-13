@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // 获取后端 API 基础 URL
@@ -24,10 +24,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoLaunch: (enabled: boolean) =>
     ipcRenderer.invoke('set-auto-launch', enabled),
 
-  // 拖放文件导入
-  onFileDrop: (callback: (filePaths: string[]) => void) => {
-    ipcRenderer.on('file-drop', (_event, filePaths: string[]) => {
-      callback(filePaths)
-    })
+  // 拖放文件路径提取
+  getFilePath: (file: File) => webUtils.getPathForFile(file),
+
+  // 托盘论文导航
+  onNavigatePaper: (callback: (paperId: string) => void) => {
+    ipcRenderer.on('navigate-paper', (_event, paperId: string) => callback(paperId))
   },
+
+  // 刷新托盘论文列表
+  updateTrayPapers: () => ipcRenderer.invoke('update-tray-papers'),
+
+  // 菜单事件
+  onMenuImport: (callback: () => void) => {
+    ipcRenderer.on('menu-import', () => callback())
+  },
+
+  // 菜单专用动作
+  toggleDevTools: () => ipcRenderer.invoke('toggle-devtools'),
+  showAbout: () => ipcRenderer.invoke('show-about'),
+  quitApp: () => ipcRenderer.invoke('quit-app'),
 })

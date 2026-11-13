@@ -22,7 +22,7 @@ async def list_papers(
 ):
     conn = get_db()
     try:
-        query = "SELECT p.*, s.* FROM papers p LEFT JOIN speed_reads s ON p.id = s.paper_id WHERE 1=1"
+        query = "SELECT p.*, s.* FROM papers p LEFT JOIN speed_reads s ON p.id = s.paper_id WHERE p.file_missing = 0"
         params: list = []
 
         if search:
@@ -137,6 +137,7 @@ async def update_paper(paper_id: str, update: PaperUpdate):
 async def delete_paper(paper_id: str):
     conn = get_db()
     try:
+        conn.execute("BEGIN IMMEDIATE")
         cur = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,))
         row = cur.fetchone()
         if not row:
@@ -153,7 +154,6 @@ async def delete_paper(paper_id: str):
 
         # 删除论文（CASCADE 会删除关联的 speed_read）
         conn.execute("DELETE FROM papers WHERE id = ?", (paper_id,))
-        conn.commit()
 
         # 回收站里移动物理文件
         recycle_path = settings.recycle_dir / recycle_id
@@ -167,6 +167,7 @@ async def delete_paper(paper_id: str):
                 json.dumps(paper, ensure_ascii=False, indent=2)
             )
 
+        conn.commit()
         return {"status": "ok"}
     finally:
         conn.close()
@@ -211,7 +212,7 @@ async def list_venues():
     conn = get_db()
     try:
         cur = conn.execute(
-            "SELECT venue, COUNT(*) as count FROM papers WHERE venue != '' GROUP BY venue ORDER BY count DESC"
+            "SELECT venue, COUNT(*) as count FROM papers WHERE venue != '' AND file_missing = 0 GROUP BY venue ORDER BY count DESC"
         )
         return [{"name": r["venue"], "count": r["count"]} for r in cur.fetchall()]
     finally:
@@ -222,7 +223,7 @@ async def list_venues():
 async def list_tags():
     conn = get_db()
     try:
-        cur = conn.execute("SELECT tags FROM papers")
+        cur = conn.execute("SELECT tags FROM papers WHERE file_missing = 0")
         tag_counts: dict[str, int] = {}
         for row in cur.fetchall():
             tags = json.loads(row["tags"]) if isinstance(row["tags"], str) else row["tags"]

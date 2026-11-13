@@ -1,5 +1,6 @@
 import { useSettingsStore } from '../../stores/settings'
 import { useState } from 'react'
+import LibrarySettings from './LibrarySettings'
 
 interface Props {
   open: boolean
@@ -9,7 +10,12 @@ interface Props {
 export default function SettingsModal({ open, onClose }: Props) {
   const aiSettings = useSettingsStore((s) => s.aiSettings)
   const setAISettings = useSettingsStore((s) => s.setAISettings)
+  const autoLaunch = useSettingsStore((s) => s.autoLaunch)
+  const setAutoLaunch = useSettingsStore((s) => s.setAutoLaunch)
   const [showKey, setShowKey] = useState(false)
+  const [autoLaunchLoading, setAutoLaunchLoading] = useState(false)
+
+  const isElectron = typeof window !== 'undefined' && !!window.electronAPI
 
   if (!open) return null
 
@@ -74,6 +80,34 @@ export default function SettingsModal({ open, onClose }: Props) {
               </div>
             </div>
           </div>
+
+          <LibrarySettings />
+
+          {/* 开机自启 */}
+          {isElectron && (
+            <div className="mt-4">
+              <div className="text-xs font-semibold text-gray-400 uppercase mb-2">系统</div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-gray-700">开机自启</div>
+                  <div className="text-[10px] text-gray-400">系统启动时自动运行 Thesis-Reader</div>
+                </div>
+                <button
+                  onClick={async () => {
+                    setAutoLaunchLoading(true)
+                    await setAutoLaunch(!autoLaunch)
+                    setAutoLaunchLoading(false)
+                  }}
+                  disabled={autoLaunchLoading}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${autoLaunch ? 'bg-blue-500' : 'bg-gray-300'}`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${autoLaunch ? 'translate-x-5' : ''}`}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-gray-100 px-5 py-3 flex justify-end">

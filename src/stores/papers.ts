@@ -71,6 +71,8 @@ interface GenState {
 }
 
 interface PapersState {
+  view: 'list' | 'graph'
+  setView: (view: 'list' | 'graph') => void
   papers: Paper[]
   venues: VenueItem[]
   tags: TagItem[]
@@ -95,6 +97,8 @@ interface PapersState {
 }
 
 export const usePapersStore = create<PapersState>((set, get) => ({
+  view: 'list',
+  setView: (view) => set({ view }),
   papers: [],
   venues: [],
   tags: [],
@@ -148,6 +152,7 @@ export const usePapersStore = create<PapersState>((set, get) => ({
     get().fetchPapers()
     get().fetchVenues()
     get().fetchTags()
+    window.electronAPI?.updateTrayPapers()
   },
 
   updatePaper: async (id: string, data: Partial<Paper>) => {
@@ -161,6 +166,7 @@ export const usePapersStore = create<PapersState>((set, get) => ({
     get().fetchPapers()
     get().fetchVenues()
     get().fetchTags()
+    window.electronAPI?.updateTrayPapers()
   },
 
   setFilter: (filter: Partial<FilterState>) => {

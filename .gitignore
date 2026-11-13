@@ -14,17 +14,27 @@ __pycache__/
 .eggs/
 
 # Runtime data
-data/
-papers/
+/data/
+/papers/
 .speedread_cache/
+/native/build/
+/backend/native/*.dll
+/backend/native/*.so
+/backend/native/*.dylib
 
 # IDE / Editor
 .vscode/
 .idea/
 
-# Claude Code
+# Local tools
 .claude/
-CLAUDE.md
+.dsh-meow/
+.codex/
+.agents/
+
+# Markdown documentation (keep README)
+*.[mM][dD]
+![rR][eE][aA][dD][mM][eE].[mM][dD]
 
 # Environment
 .env

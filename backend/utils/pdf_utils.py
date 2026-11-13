@@ -178,8 +178,13 @@ def extract_pdf_metadata(file_path: str) -> dict:
 
 def extract_text(file_path: str, pages: list[int] | None = None) -> str:
     """提取 PDF 文本（指定页或全部）"""
+    return "\n\n".join(extract_page_texts(file_path, pages))
+
+
+def extract_page_texts(file_path: str, pages: list[int] | None = None) -> list[str]:
+    """保留真实页边界，页内空行不影响页面评分和渲染页码。"""
     if not HAS_PYMUPDF:
-        return ""
+        return []
     doc = fitz.open(file_path)
     target = pages if pages else list(range(doc.page_count))
     texts = []
@@ -187,7 +192,7 @@ def extract_text(file_path: str, pages: list[int] | None = None) -> str:
         if 0 <= i < doc.page_count:
             texts.append(doc[i].get_text())
     doc.close()
-    return "\n\n".join(texts)
+    return texts
 
 
 def render_page(file_path: str, page_num: int,

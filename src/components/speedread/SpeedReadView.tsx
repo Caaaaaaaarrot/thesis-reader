@@ -74,6 +74,11 @@ export default function SpeedReadView({ paperId, cachedResult, onGenerated }: Pr
       () => {
         finishGenerating(paperId)
         fetchCachedResult()
+        // 发送系统通知
+        const paper = usePapersStore.getState().papers.find((p) => p.id === paperId)
+        if (paper && window.electronAPI?.notify) {
+          window.electronAPI.notify('速读完成', paper.title || '论文速读已生成')
+        }
       },
       (errMsg) => {
         setError(errMsg)

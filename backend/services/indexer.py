@@ -1,14 +1,6 @@
-import os
 import re
-import json
-import hashlib
-import shutil
 from pathlib import Path
-from datetime import datetime
-from ..database import get_db
-from ..config import settings
 from ..models.paper import PaperResponse
-from ..utils.pdf_utils import get_pdf_info, extract_pdf_metadata
 
 # 从文件名推断 venue/year 的规则
 VENUE_PATTERNS: list[tuple[str, str]] = [
@@ -105,72 +97,6 @@ def infer_metadata(filename: str, pdf_meta: dict | None = None) -> dict:
 
 
 def import_paper(file_path: str) -> PaperResponse:
-    """导入论文到库中"""
-    src = Path(file_path)
-    filename = src.name
-
-    # 使用 hash 作为 ID
-    file_hash = hashlib.sha1(str(src).encode()).hexdigest()[:12]
-
-    # 基本信息
-    file_size = src.stat().st_size
-    date_added = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    # PDF 信息
-    page_count = 0
-    pdf_meta = {}
-    try:
-        info = get_pdf_info(str(src))
-        page_count = info.get("page_count", 0)
-    except Exception:
-        pass
-
-    # 从 PDF 内部提取元数据
-    try:
-        pdf_meta = extract_pdf_metadata(str(src))
-    except Exception:
-        pass
-
-    # 推断元数据（结合文件名 + PDF 内部信息）
-    meta = infer_metadata(filename, pdf_meta)
-
-    # 确保 papers 目录存在
-    settings.papers_dir.mkdir(parents=True, exist_ok=True)
-
-    # 复制文件
-    dest_dir = settings.papers_dir
-    dest = dest_dir / filename
-
-    # 如果同名文件已存在，加后缀
-    if dest.exists():
-        base = dest.stem
-        suffix = dest.suffix
-        counter = 1
-        while dest.exists():
-            dest = dest_dir / f"{base}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(str(src), str(dest))
-    rel_path = str(dest.relative_to(settings.workspace_root))
-
-    # 写入数据库
-    conn = get_db()
-    try:
-        paper_id = file_hash
-        conn.execute(
-            """INSERT OR REPLACE INTO papers
-               (id, file_path, title, venue, year, date_added, page_count, file_size)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (paper_id, rel_path, meta["title"], meta["venue"],
-             meta["year"], date_added, page_count, file_size)
-        )
-        conn.commit()
-
-        cur = conn.execute(
-            "SELECT p.*, s.* FROM papers p LEFT JOIN speed_reads s ON p.id = s.paper_id WHERE p.id = ?",
-            (paper_id,)
-        )
-        d = dict(cur.fetchone())
-        return PaperResponse.from_row(d, d)
-    finally:
-        conn.close()
+    """手动导入和目录监听共用同一套索引与去重规则。"""
+    from .library_index import import_file
+    return import_file(file_path)

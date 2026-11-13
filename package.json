@@ -4,6 +4,9 @@
   "description": "智能论文管理与阅读助手",
   "main": "dist-electron/main.js",
   "scripts": {
+    "predev": "python scripts/build_native.py --optional",
+    "native:build": "python scripts/build_native.py",
+    "test": "python -m unittest discover -s tests -v && node scripts/test_graph.cjs",
     "dev": "node scripts/dev.mjs",
     "dev:web": "node scripts/dev-web.mjs",
     "dev:electron": "tsc -p tsconfig.electron.json && electron .",

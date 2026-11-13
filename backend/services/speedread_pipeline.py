@@ -5,7 +5,7 @@ import asyncio
 from pathlib import Path
 from ..database import get_db
 from ..config import settings
-from ..utils.pdf_utils import extract_text, render_page_base64, extract_pdf_metadata
+from ..utils.pdf_utils import extract_page_texts, render_page_base64, extract_pdf_metadata
 from .indexer import infer_metadata
 from .page_scorer import select_pages
 
@@ -82,12 +82,12 @@ async def run_speedread(paper_id: str, force: bool = False,
 
         # Step 1: 提取全文
         yield {"event": "status", "data": {"phase": "extracting"}}
-        full_text = extract_text(str(file_path))
-        if not full_text:
+        pages = await asyncio.to_thread(extract_page_texts, str(file_path))
+        full_text = "\n\n".join(pages)
+        if not full_text.strip():
             yield {"event": "error", "data": {"message": "无法提取 PDF 文本"}}
             return
 
-        pages = full_text.split("\n\n")
         total_pages = len(pages)
 
         # Step 2: 页面评分 + 选择

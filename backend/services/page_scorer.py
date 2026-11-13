@@ -1,5 +1,7 @@
 """页面角色评分 — 按关键词打分选出最有信息量的页面"""
 
+from .native_scorer import count_keywords
+
 # 四种角色的关键词权重
 ROLE_KEYWORDS: dict[str, dict[str, list[str]]] = {
     "method_figure": {
@@ -49,26 +51,33 @@ BOOST_KEYWORDS = [
 
 def score_page(text: str) -> dict:
     """对一页文本打分，返回总分和角色分类"""
-    text_lower = text.lower()
-    scores = {}
-    details = {}
+    return score_pages([text])[0]
 
-    for role, config in ROLE_KEYWORDS.items():
-        role_score = 0.0
-        matched = []
-        for kw in config["keywords"]:
-            count = text_lower.count(kw.lower())
-            if count > 0:
-                role_score += count * config["weight"]
-                matched.append(kw)
-        scores[role] = role_score
-        details[role] = matched
 
-    # 通用信息密度加分
-    boost = sum(1 for kw in BOOST_KEYWORDS if kw.lower() in text_lower)
-
-    total = sum(scores.values()) + boost
-    return {"total": total, "roles": scores, "boost": boost, "details": details}
+def score_pages(texts: list[str]) -> list[dict]:
+    """一次跨语言调用评分全部页面；权重和关键词仍由 Python 管理。"""
+    lowered = [text.lower() for text in texts]
+    keywords = list(dict.fromkeys(
+        [kw.lower() for config in ROLE_KEYWORDS.values() for kw in config["keywords"]]
+        + [kw.lower() for kw in BOOST_KEYWORDS]))
+    counts = count_keywords(lowered, keywords)
+    if counts is None:
+        counts = [[text.count(kw) for kw in keywords] for text in lowered]
+    indices = {kw: i for i, kw in enumerate(keywords)}
+    results = []
+    for row in counts:
+        scores, details = {}, {}
+        for role, config in ROLE_KEYWORDS.items():
+            score, matched = 0.0, []
+            for kw in config["keywords"]:
+                count = row[indices[kw.lower()]]
+                if count:
+                    score += count * config["weight"]
+                    matched.append(kw)
+            scores[role], details[role] = score, matched
+        boost = sum(1 for kw in BOOST_KEYWORDS if row[indices[kw.lower()]] > 0)
+        results.append({"total": sum(scores.values()) + boost, "roles": scores, "boost": boost, "details": details})
+    return results
 
 
 def select_pages(
@@ -79,11 +88,12 @@ def select_pages(
     从所有页面中选出 top-N 页。
     返回 [{page_num, total_score, role_scores, ...}]
     """
+    if max_pages <= 0:
+        return []
     page_scores = []
-    for i, text in enumerate(page_texts):
+    for i, (text, s) in enumerate(zip(page_texts, score_pages(page_texts))):
         if not text.strip():
             continue
-        s = score_page(text)
         page_scores.append({
             "page_num": i,
             "total_score": s["total"],
